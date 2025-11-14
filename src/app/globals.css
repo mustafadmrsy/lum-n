@@ -1,26 +1,53 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
+  /* Logo tabanlı palet */
+  --color-pink: #E3A4C3; /* arka plan - slightly darker */
+  --color-purple: #800020; /* lavanta moru aksan (buton/aksan için bordo) */
+  --color-brown: #5A3E36; /* kitap kahverengisi metin */
+  /* Uygulanan arka plan ve metin değişkenleri */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: var(--color-brown);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-pink: var(--color-pink);
+  --color-purple: var(--color-purple);
+  --color-brown: var(--color-brown);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-playfair);
 }
 
+/* Karanlık modda da pembe arka planı koru */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: var(--color-brown);
   }
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-brown);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.font-serif {
+  font-family: var(--font-playfair), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+.prose {
+  color: var(--color-brown);
+}
+
+.btn-primary {
+  background-color: var(--color-purple);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: color-mix(in oklab, var(--color-purple), black 10%);
 }
