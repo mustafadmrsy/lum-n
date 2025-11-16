@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - Kayıt için yazma izni gerekli
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if true; // Kayıt endpoint'i için gerekli
+      allow update: if true;
+      allow delete: if false;
+    }
+
+    // Diğer koleksiyonlar için geçici izinler
+    match /{document=**} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

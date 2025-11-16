@@ -8,6 +8,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import TextLayerEditor, { type TextLayer } from "@/components/TextLayerEditor";
 import { useNavigationLock } from "@/context/NavigationLockContext";
+import { UserRole } from "@/types/models";
 
 export default function NewMagazinePage() {
   const router = useRouter();
@@ -68,8 +69,8 @@ export default function NewMagazinePage() {
       });
 
       router.replace("/admin");
-    } catch (e: any) {
-      setError(e?.message ?? "Kaydetme hatası");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kaydetme hatası");
     } finally {
       setLoading(false);
     }
@@ -130,7 +131,7 @@ export default function NewMagazinePage() {
     const canvas = await html2canvas(book, { scale: 2 });
     const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF("p", "mm", "a4");
-    const imgProps: any = (pdf as any).getImageProperties(imgData);
+    const imgProps = pdf.getImageProperties(imgData);
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
     pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
@@ -138,7 +139,7 @@ export default function NewMagazinePage() {
   }
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole={UserRole.WRITER}>
       <div className="mx-auto max-w-5xl px-4 py-6">
         <h1 className="mb-6 font-serif text-3xl text-[var(--color-purple)]">Yeni Dergi Yazısı</h1>
         <div className="space-y-4">
@@ -178,7 +179,7 @@ export default function NewMagazinePage() {
                           <button type="button" className={`rounded border border-black/10 px-2 py-1 text-sm ${selectedLayer?.italic ? "bg-black/5" : ""}`} onClick={() => updateSelectedLayer({ italic: !selectedLayer?.italic })}>I</button>
                         </div>
                         <input type="color" className="h-8 w-10 rounded border border-black/10 p-0" value={selectedLayer?.color || "#3a2e2a"} onChange={(e) => updateSelectedLayer({ color: e.target.value })} />
-                        <select className="w-full rounded border border-black/10 px-2 py-1 text-sm" value={selectedLayer?.align || "left"} onChange={(e) => updateSelectedLayer({ align: e.target.value as any })}>
+                        <select className="w-full rounded border border-black/10 px-2 py-1 text-sm" value={selectedLayer?.align || "left"} onChange={(e) => updateSelectedLayer({ align: e.target.value as "left" | "center" | "right" })}>
                           <option value="left">Sol</option>
                           <option value="center">Orta</option>
                           <option value="right">Sağ</option>
@@ -214,7 +215,7 @@ export default function NewMagazinePage() {
                           showCover={false}
                           useMouseEvents={!isLocked}
                           className="flip-book-root"
-                          onFlip={(e: any) => {
+                          onFlip={(e: { data?: number }) => {
                             const page = typeof e?.data === "number" ? e.data : 0;
                             const left = page % 2 === 0 ? page : page - 1;
                             setSpreadIndex(left);

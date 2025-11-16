@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import { NavigationLockProvider } from "@/context/NavigationLockContext";
 import NavigationGuard from "@/components/NavigationGuard";
 import LockToggleButton from "@/components/LockToggleButton";
+import { AuthProvider } from "@/components/AuthProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,17 +31,19 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <body className={`${inter.variable} ${playfair.variable} antialiased text-[color:var(--color-brown)]`}>
-        <NavigationLockProvider>
-          <NavigationGuard />
-          <div className="min-h-screen flex flex-col">
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
-          <LockToggleButton />
-        </NavigationLockProvider>
+        <AuthProvider>
+          <NavigationLockProvider>
+            <NavigationGuard />
+            <div className="min-h-screen flex flex-col">
+              <Navbar />
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+            <LockToggleButton />
+          </NavigationLockProvider>
+        </AuthProvider>
       </body>
     </html>
   );

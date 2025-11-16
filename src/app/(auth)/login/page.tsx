@@ -1,103 +1,155 @@
 "use client";
-import { FormEvent, useState } from "react";
+
+import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { isAdminEmail } from "@/lib/adminAllowlist";
+import Link from "next/link";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { login, isLoading, error } = useAuthStore();
 
-  const onSubmit = async (e: FormEvent) => {
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [validationErrors, setValidationErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
+
+  const validateForm = (): boolean => {
+    const errors: typeof validationErrors = {};
+
+    if (!formData.email.trim()) {
+      errors.email = "E-posta gereklidir";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "Geçerli bir e-posta adresi girin";
+    }
+
+    if (!formData.password) {
+      errors.password = "Şifre gereklidir";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      if (!isAdminEmail(cred.user.email)) {
-        setError("Bu hesap admin yetkisine sahip değil.");
-        setLoading(false);
-        return;
-      }
-      router.replace("/admin");
-    } catch (err: any) {
-      setError(err?.message ?? "Giriş başarısız");
-    } finally {
-      setLoading(false);
+
+    if (!validateForm()) {
+      return;
+    }
+
+    const success = await login(formData.email, formData.password);
+
+    if (success) {
+      router.push("/");
     }
   };
 
-  const enableDevSignup = process.env.NEXT_PUBLIC_ENABLE_DEV_SIGNUP === "true";
-  const defaultDevEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",")[0]?.trim() || "mustafadmrsy125@gmail.com";
-  const defaultDevPassword = "12345678";
-
-  const onDevCreateAdmin = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      await createUserWithEmailAndPassword(auth, defaultDevEmail, defaultDevPassword);
-    } catch (err: any) {
-      // Hesap zaten varsa veya farklı hata olabilir; mesajı kullanıcıya iletelim
-      setError(err?.message ?? "Kullanıcı oluşturma hatası");
-    } finally {
-      setLoading(false);
+  const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear validation error when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
   return (
-    <div className="min-h-[70vh] grid place-items-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-        <h1 className="mb-6 text-center font-serif text-3xl text-[var(--color-purple)]">Dergi Lumin</h1>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-brown)]">E‑posta</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--color-pink)]"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-brown)]">Parola</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--color-pink)]"
-              required
-            />
-          </div>
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-full py-2 font-medium btn-primary disabled:opacity-60"
-          >
-            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
-          </button>
-        </form>
-        {enableDevSignup && (
-          <div className="mt-4 space-y-2 text-center">
-            <p className="text-xs text-[var(--color-brown)]/60">Geliştirici kısayolu: varsayılan admin hesabını oluştur</p>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={onDevCreateAdmin}
-              className="w-full rounded-full py-2 border border-black/10 text-sm"
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Hesabınıza giriş yapın
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Hesabınız yok mu?{" "}
+            <Link
+              href="/register"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
             >
-              Admin oluştur ({defaultDevEmail} / {defaultDevPassword})
+              Hesap oluşturun
+            </Link>
+          </p>
+        </div>
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email-address" className="sr-only">
+                E-posta
+              </label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
+                  validationErrors.email ? "border-red-300" : "border-gray-300"
+                } placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                placeholder="E-posta"
+                value={formData.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+              />
+              {validationErrors.email && (
+                <p className="mt-1 text-xs text-red-600">
+                  {validationErrors.email}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Şifre
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
+                  validationErrors.password
+                    ? "border-red-300"
+                    : "border-gray-300"
+                } placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                placeholder="Şifre"
+                value={formData.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+              />
+              {validationErrors.password && (
+                <p className="mt-1 text-xs text-red-600">
+                  {validationErrors.password}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
             </button>
           </div>
-        )}
+        </form>
       </div>
     </div>
   );
 }
+
