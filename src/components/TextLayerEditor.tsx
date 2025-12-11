@@ -20,33 +20,38 @@ type Props = {
   height: number;
   layers: TextLayer[];
   onChange: (next: TextLayer[]) => void;
+  onChangeNoHistory?: (next: TextLayer[]) => void;
   onSelectedChange?: (info: { pageId: number; layerId: number | null }) => void;
   hideToolbar?: boolean;
   selectedIdExternal?: number | null;
+  showGrid?: boolean;
+  snapToGrid?: boolean;
+  showGuides?: boolean;
 };
 
-export default function TextLayerEditor({ pageId, width, height, layers, onChange, onSelectedChange, hideToolbar, selectedIdExternal }: Props) {
+export default function TextLayerEditor({ pageId, width, height, layers, onChange, onChangeNoHistory, onSelectedChange, hideToolbar, selectedIdExternal, showGrid, snapToGrid, showGuides }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const dragOffset = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const editorsRef = useRef<Map<number, HTMLDivElement>>(new Map());
-  const saveTimersRef = useRef<Map<number, number>>(new Map());
-  const editingBufferRef = useRef<Map<number, string>>(new Map());
-  const prevSelectedRef = useRef<number | null>(null);
-  const [editingValue, setEditingValue] = useState<string>("");
 
   const selected = useMemo(() => layers.find((l) => l.id === selectedId) || null, [layers, selectedId]);
 
   const updateLayer = useCallback(
     (id: number, patch: Partial<TextLayer>) => {
-      onChange(layers.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+      const next = layers.map((l) => (l.id === id ? { ...l, ...patch } : l));
+      // Sürükleme sırasında yapılan pozisyon güncellemeleri history'e girmesin
+      if (draggingId && onChangeNoHistory) {
+        onChangeNoHistory(next);
+      } else {
+        onChange(next);
+      }
     },
-    [layers, onChange]
+    [layers, onChange, onChangeNoHistory, draggingId]
   );
 
   const addText = useCallback(() => {
-    const id = Date.now();
+    const id = Date.now() + Math.floor(Math.random() * 100000);
     const base: TextLayer = {
       id,
       x: Math.round(width * 0.1),
@@ -83,16 +88,21 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
   );
 
   const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent<HTMLDivElement>) => {
       if (!draggingId) return;
       const container = containerRef.current;
       if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const nx = Math.max(0, Math.min(width, e.clientX - rect.left - dragOffset.current.dx));
-      const ny = Math.max(0, Math.min(height, e.clientY - rect.top - dragOffset.current.dy));
+      let nx = Math.min(Math.max(0, e.clientX - container.getBoundingClientRect().left - dragOffset.current.dx), width - 40);
+      let ny = Math.min(Math.max(0, e.clientY - container.getBoundingClientRect().top - dragOffset.current.dy), height - 24);
+
+      if (snapToGrid) {
+        const grid = 24; // daha belirgin snap için daha geniş ızgara
+        nx = Math.round(nx / grid) * grid;
+        ny = Math.round(ny / grid) * grid;
+      }
       updateLayer(draggingId, { x: Math.round(nx), y: Math.round(ny) });
     },
-    [draggingId, height, width, updateLayer]
+    [draggingId, height, width, updateLayer, snapToGrid]
   );
 
   const onMouseUp = useCallback(() => {
@@ -106,9 +116,14 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
       const id = draggingId as number;
       const container = containerRef.current;
       if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const nx = Math.max(0, Math.min(width, e.clientX - rect.left - dragOffset.current.dx));
-      const ny = Math.max(0, Math.min(height, e.clientY - rect.top - dragOffset.current.dy));
+      let nx = Math.min(Math.max(0, e.clientX - container.getBoundingClientRect().left - dragOffset.current.dx), width - 40);
+      let ny = Math.min(Math.max(0, e.clientY - container.getBoundingClientRect().top - dragOffset.current.dy), height - 24);
+
+      if (snapToGrid) {
+        const grid = 8;
+        nx = Math.round(nx / grid) * grid;
+        ny = Math.round(ny / grid) * grid;
+      }
       updateLayer(id, { x: Math.round(nx), y: Math.round(ny) });
     }
     function onWinUp() {
@@ -120,7 +135,7 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
       window.removeEventListener("mousemove", onWinMove, true);
       window.removeEventListener("mouseup", onWinUp, true);
     };
-  }, [draggingId, height, width, updateLayer]);
+  }, [draggingId, height, width, updateLayer, snapToGrid]);
 
   const setPropSelected = useCallback(
     (patch: Partial<TextLayer>) => {
@@ -130,35 +145,7 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
     [selected, updateLayer]
   );
 
-  const lastEmittedRef = useRef<{ pageId: number; layerId: number | null } | null>(null);
-  useEffect(() => {
-    if (!onSelectedChange) return;
-    const next = { pageId, layerId: selectedId };
-    const prev = lastEmittedRef.current;
-    if (!prev || prev.pageId !== next.pageId || prev.layerId !== next.layerId) {
-      lastEmittedRef.current = next;
-      onSelectedChange(next);
-    }
-  }, [pageId, selectedId, onSelectedChange]);
-
-  // Autofocus selected editor (contentEditable mode previously)
-  useEffect(() => {
-    // Commit buffer when selection changes away from a layer
-    const prevId = prevSelectedRef.current;
-    if (prevId && prevId !== selectedId) {
-      const buffered = editingBufferRef.current.get(prevId);
-      if (typeof buffered === 'string') {
-        updateLayer(prevId, { text: buffered });
-        editingBufferRef.current.delete(prevId);
-      }
-    }
-    prevSelectedRef.current = selectedId;
-
-    // Initialize textarea value when a layer is selected
-    if (!selectedId) return;
-    const curr = layers.find((l) => l.id === selectedId);
-    if (curr) setEditingValue(editingBufferRef.current.get(selectedId) ?? curr.text);
-  }, [selectedId, layers]);
+  // Dışarıdan seçim senkronizasyonu dışında ekstra buffer tutmuyoruz
 
   // Sync external selection from parent
   useEffect(() => {
@@ -168,11 +155,24 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
     if (exists) setSelectedId(selectedIdExternal);
   }, [selectedIdExternal, selectedId, layers]);
 
+  const backgroundStyle: React.CSSProperties = {};
+  if (showGrid) {
+    const gridSize = 32;
+    backgroundStyle.backgroundImage = `
+      linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)
+    `;
+    backgroundStyle.backgroundSize = `${gridSize}px ${gridSize}px`;
+  }
+  if (showGuides) {
+    backgroundStyle.boxShadow = "inset 0 0 0 2px rgba(128,0,32,0.4)";
+  }
+
   return (
     <div
       ref={containerRef}
-      className="relative bg-white z-40 pointer-events-auto select-text"
-      style={{ width, height }}
+      className="relative bg-transparent z-40 pointer-events-auto select-text"
+      style={{ width, height, ...backgroundStyle }}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
@@ -186,6 +186,20 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
         }
       }}
     >
+      {showGuides && (
+        <>
+          {/* Dikey orta çizgi */}
+          <div
+            className="pointer-events-none absolute top-0 bottom-0 border-l border-[rgba(128,0,32,0.35)]"
+            style={{ left: width / 2 }}
+          />
+          {/* Yatay orta çizgi */}
+          <div
+            className="pointer-events-none absolute left-0 right-0 border-t border-[rgba(128,0,32,0.35)]"
+            style={{ top: height / 2 }}
+          />
+        </>
+      )}
       {/* İç toolbar (opsiyonel) */}
       {!hideToolbar && (
         <div
@@ -277,56 +291,65 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
                 const target = e.target as HTMLElement | null;
                 const isHandle = !!target?.closest('[data-handle]');
                 const isEditable = !!target?.closest('[data-editable]');
-                if (isHandle || (e.altKey && isEditable)) {
+                if (isHandle) {
                   onMouseDownLayer(e, l.id);
-                } else {
-                  // allow native focus & typing
-                  setSelectedId(l.id);
+                  if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                  return;
                 }
+
+                if (isEditable) {
+                  if (e.altKey) {
+                    onMouseDownLayer(e, l.id);
+                    if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                  } else {
+                    // textarea içine normal tıklama: sadece seç / odakla
+                    setSelectedId(l.id);
+                    if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                  }
+                  return;
+                }
+
+                // Çerçevenin boş alanına tıklama: sürükle
+                onMouseDownLayer(e, l.id);
+                if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
               }}
             >
-              <div
-                className="absolute -top-3 -left-3 z-50 h-6 w-6 rounded-full bg-white/90 border border-black/10 shadow grid place-items-center cursor-grab"
-                title="Taşı"
-                data-handle
-                onMouseDown={(e) => onMouseDownLayer(e as any, l.id)}
-              >
-                ≡
-              </div>
-              {isSelected ? (
-                <textarea
-                  className="outline-none z-50 bg-transparent resize-none"
-                  data-editable
-                  value={editingValue}
-                  onChange={(e) => {
-                    setEditingValue(e.target.value);
-                    editingBufferRef.current.set(l.id, e.target.value);
-                  }}
-                  autoFocus
-                  style={{
-                    color: l.color,
-                    fontFamily: l.fontFamily as any,
-                    fontWeight: l.bold ? 700 : 400,
-                    fontStyle: l.italic ? "italic" : "normal",
-                    fontSize: l.fontSize,
-                    textAlign: l.align as any,
-                    whiteSpace: "pre-wrap",
-                    width: "max-content",
-                    minWidth: "8px",
-                    background: "transparent",
-                    border: "none",
-                    outline: "none",
-                  }}
-                  onBlur={() => {
-                    editingBufferRef.current.set(l.id, editingValue);
-                    updateLayer(l.id, { text: editingValue });
-                  }}
-                />
-              ) : (
-                <div className="outline-none select-text z-50" data-editable style={{ whiteSpace: "pre-wrap" }} onMouseDown={() => setSelectedId(l.id)}>
-                  {l.text}
+              <div className="relative inline-block px-2 py-1">
+                <div
+                  className="absolute -top-3 -left-3 z-50 h-6 w-6 rounded-full bg-white/90 border border-black/10 shadow grid place-items-center cursor-grab"
+                  title="Taşı"
+                  data-handle
+                  onMouseDown={(e) => onMouseDownLayer(e as any, l.id)}
+                >
+                  ≡
                 </div>
-              )}
+                {isSelected ? (
+                  <textarea
+                    className="z-50 max-w-full resize rounded-xl border border-black/10 bg-white/95 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-purple)] focus:border-transparent"
+                    data-editable
+                    value={l.text}
+                    onChange={(e) => {
+                      updateLayer(l.id, { text: e.target.value });
+                    }}
+                    autoFocus
+                    style={{
+                      color: l.color,
+                      fontFamily: l.fontFamily as any,
+                      fontWeight: l.bold ? 700 : 400,
+                      fontStyle: l.italic ? "italic" : "normal",
+                      fontSize: l.fontSize,
+                      textAlign: l.align as any,
+                      whiteSpace: "pre-wrap",
+                      width: "max-content",
+                      minWidth: "120px",
+                    }}
+                  />
+                ) : (
+                  <div className="outline-none select-text z-50" data-editable style={{ whiteSpace: "pre-wrap" }} onMouseDown={() => setSelectedId(l.id)}>
+                    {l.text}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}

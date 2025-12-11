@@ -45,15 +45,18 @@ export default function NavigationGuard() {
       if (!isLocked) return;
       const target = resolveTarget(e.target);
       if (!target) return;
-      // Block flip-book surface clicks except toolbar
       if (target.closest('.flip-book-root') && !target.closest('.z-10')) {
-        if (isEditableTarget(target)) return; // allow edits/dragging
+        if (isEditableTarget(target)) {
+          // Allow focus/typing but do not let the event reach FlipBook
+          (e as any).stopImmediatePropagation?.();
+          e.stopPropagation();
+          return;
+        }
         e.preventDefault();
         (e as any).stopImmediatePropagation?.();
         e.stopPropagation();
         return;
       }
-      // Do not block global in-app links anymore; only guard inside editor surface
     }
 
     function onAuxClick(e: MouseEvent) {
@@ -98,7 +101,12 @@ export default function NavigationGuard() {
       if (!isLocked) return;
       const target = resolveTarget(e.target);
       if (target && target.closest('.flip-book-root') && !target.closest('.z-10')) {
-        if (isEditableTarget(target)) return; // allow edits/dragging
+        if (isEditableTarget(target)) {
+          // Let draggable/editable elements work but block FlipBook from seeing the event
+          (e as any).stopImmediatePropagation?.();
+          e.stopPropagation();
+          return;
+        }
         e.preventDefault();
         (e as any).stopImmediatePropagation?.();
         e.stopPropagation();
