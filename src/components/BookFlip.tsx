@@ -2,11 +2,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigationLock } from "@/context/NavigationLockContext";
 
-export default function BookFlip({ pages }: { pages: string[] }) {
+export default function BookFlip({ pages, mode = "toggle" }: { pages: string[]; mode?: "toggle" | "alwaysFlip" }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ width: 420, height: 600 });
+  const [size, setSize] = useState({ width: 520, height: 650 });
   const [FlipComp, setFlipComp] = useState<any>(null);
   const { isLocked } = useNavigationLock();
+
+  const scale = Math.min(size.width / 560, size.height / 700);
+  const scaledWidth = Math.floor(560 * scale);
+  const scaledHeight = Math.floor(700 * scale);
 
   useEffect(() => {
     let mounted = true;
@@ -20,9 +24,11 @@ export default function BookFlip({ pages }: { pages: string[] }) {
     const onResize = () => {
       const el = containerRef.current;
       if (!el) return;
-      const maxW = Math.min(520, Math.max(300, Math.floor(el.clientWidth / 2) - 16));
-      const width = maxW;
-      const height = Math.floor(width * 1.414); // ~A5 portrait
+      // Our editor pages are 560x700 (ratio 1.25). Width prop is single-page width.
+      // We aim for a two-page spread, so we base the page width on half container.
+      const pageMaxW = Math.min(560, Math.max(320, Math.floor(el.clientWidth / 2) - 16));
+      const width = pageMaxW;
+      const height = Math.floor(width * (700 / 560));
       setSize({ width, height });
     };
     onResize();
@@ -36,8 +42,16 @@ export default function BookFlip({ pages }: { pages: string[] }) {
       <div ref={containerRef} className="w-full flex justify-center">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 w-full max-w-5xl">
           {pages.slice(0, 2).map((html, i) => (
-            <div key={i} className="bg-white p-6 shadow border border-black/10">
-              <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+            <div key={i} className="bg-white shadow border border-black/10">
+              <div className="flex items-start justify-center" style={{ width: size.width, height: size.height, overflow: "hidden" }}>
+                <div style={{ width: scaledWidth, height: scaledHeight, overflow: "hidden" }}>
+                  <div
+                    className="prose max-w-none"
+                    style={{ width: 560, height: 700, transform: `scale(${scale})`, transformOrigin: "top left" }}
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -47,34 +61,55 @@ export default function BookFlip({ pages }: { pages: string[] }) {
 
   const HTMLFlipBook: any = FlipComp;
 
+  const shouldShowFlip = mode === "alwaysFlip" || !isLocked;
+  const flipKey = `${pages.length}-${pages[0]?.length ?? 0}-${pages[pages.length - 1]?.length ?? 0}`;
+
   // FlipComp yüklendiğinde: hem flip hem statik görünümü aynı anda render et,
   // kilit durumuna göre sadece biri görünür olsun; böylece sayfa state'i korunur.
   return (
     <div ref={containerRef} className="w-full flex justify-center">
       <div className="w-full max-w-5xl flex justify-center">
-        <div className={isLocked ? "hidden" : "block"}>
+        <div className={shouldShowFlip ? "block" : "hidden"}>
           <HTMLFlipBook
+            key={flipKey}
             width={size.width}
             height={size.height}
             className="shadow-xl rounded-md"
-            showCover={false}
+            showCover={true}
+            usePortrait={false}
             mobileScrollSupport={true}
             maxShadowOpacity={0.3}
             useMouseEvents={true}
           >
             {pages.map((html, i) => (
-              <div key={i} className="bg-white p-6 font-serif text-[var(--color-brown)]">
-                <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+              <div key={i} className="bg-white font-serif text-[var(--color-brown)]" style={{ overflow: "hidden" }}>
+                <div className="flex items-start justify-center" style={{ width: size.width, height: size.height, overflow: "hidden" }}>
+                  <div style={{ width: scaledWidth, height: scaledHeight, overflow: "hidden" }}>
+                    <div
+                      className="prose max-w-none"
+                      style={{ width: 560, height: 700, transform: `scale(${scale})`, transformOrigin: "top left" }}
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </HTMLFlipBook>
         </div>
 
-        <div className={isLocked ? "block" : "hidden"}>
+        <div className={mode === "toggle" && isLocked ? "block" : "hidden"}>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {pages.slice(0, 2).map((html, i) => (
-              <div key={i} className="bg-white p-6 shadow border border-black/10">
-                <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+              <div key={i} className="bg-white shadow border border-black/10">
+                <div className="flex items-start justify-center" style={{ width: size.width, height: size.height, overflow: "hidden" }}>
+                  <div style={{ width: scaledWidth, height: scaledHeight, overflow: "hidden" }}>
+                    <div
+                      className="prose max-w-none"
+                      style={{ width: 560, height: 700, transform: `scale(${scale})`, transformOrigin: "top left" }}
+                      dangerouslySetInnerHTML={{ __html: html }}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>

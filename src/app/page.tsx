@@ -9,74 +9,70 @@ export default function Home() {
   const qAll = query(col, orderBy("publishedAt", "desc"));
   const [allSnap, loadingAll] = useCollection(qAll);
 
+  const published = allSnap?.docs.filter((d) => {
+    const data = d.data() as any;
+    return data?.status === "published" || !!data?.publishedAt;
+  }) || [];
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      {/* Hero: Son Sayı */}
+    <div className="mx-auto max-w-6xl px-4 py-10">
       <section className="mb-10">
-        <h1 className="sr-only">Dergi Lumin</h1>
-        {(loadingAll) && <p>Yükleniyor...</p>}
-        {allSnap?.docs?.[0] ? (() => {
-          // İlk yayınlanmışı bul (publishedAt dolu olan ilk doküman)
-          const first = allSnap.docs.find((d) => (d.data() as any)?.publishedAt) || allSnap.docs[0];
-          const d = first.data() as any;
-          return (
-            <Link href={`/magazine/${first.id}`} className="group block">
-              <div className="w-full overflow-hidden rounded-xl bg-white border border-black/5">
-                {d.coverImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={d.coverImage}
-                    alt={d.title}
-                    className="w-full h-80 object-cover transition-opacity group-hover:opacity-95"
-                  />
-                ) : (
-                  <div className="h-80 bg-gradient-to-br from-[var(--color-pink)] to-[var(--color-purple)]" />
-                )}
-                <div className="p-5">
-                  <h2 className="font-serif text-3xl text-[var(--color-purple)] group-hover:underline">
-                    {d.title}
-                  </h2>
-                </div>
-              </div>
-            </Link>
-          );
-        })() : (
-          <div className="rounded-xl border border-black/5 bg-white p-6 text-center text-[var(--color-brown)]/70">Henüz yayınlanmış dergi bulunmuyor.</div>
-        )}
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-4xl text-[var(--color-purple)]">Sayılarımız</h1>
+            <p className="mt-2 text-sm text-[var(--color-brown)]/70">
+              Yayınlanan sayıları kapağından seçip flipbook olarak okuyabilirsin.
+            </p>
+          </div>
+        </div>
       </section>
 
-      {/* Yazılarımız: Minimal başlık listesi */}
-      <section>
-        <h2 className="mb-4 font-serif text-2xl text-[var(--color-purple)]">Yazılarımız</h2>
-        {(loadingAll) && <p>Yükleniyor...</p>}
-        {allSnap?.docs?.length ? (
-          <ul className="space-y-2">
-            {allSnap.docs
-              .filter((docu) => (docu.data() as any)?.publishedAt)
-              .map((docu) => {
-                const d = docu.data() as any;
+      {loadingAll && <p className="text-sm text-[var(--color-brown)]/70">Yükleniyor...</p>}
+
+      {!loadingAll && published.length === 0 && (
+        <div className="rounded-xl border border-black/5 bg-white p-6 text-center text-[var(--color-brown)]/70">
+          Henüz yayınlanmış dergi bulunmuyor.
+        </div>
+      )}
+
+      {published.length > 0 && (
+        <section>
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+            {published.map((docu) => {
+              const d = docu.data() as any;
+              const cover = d.coverImageUrl || d.coverImage || null;
               return (
-                <li key={docu.id}>
-                  <Link href={`/magazine/${docu.id}`} className="underline decoration-1 underline-offset-2 hover:decoration-2">
-                    {d.title}
-                  </Link>
-                </li>
+                <Link
+                  key={docu.id}
+                  href={`/magazine/${docu.id}`}
+                  className="group"
+                >
+                  <div className="mx-auto w-full max-w-[260px]">
+                    <div className="relative overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm transition-shadow group-hover:shadow-md">
+                      <div className="aspect-[3/4] w-full">
+                        {cover ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cover}
+                            alt={d.title || "Kapak"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-gradient-to-br from-[var(--color-pink)] to-[var(--color-purple)]" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-center">
+                      <div className="font-serif text-lg text-[var(--color-brown)] line-clamp-1">{d.title || "Başlıksız"}</div>
+                      <div className="text-[11px] text-[var(--color-brown)]/60 line-clamp-1">{d.authorName || ""}</div>
+                    </div>
+                  </div>
+                </Link>
               );
             })}
-          </ul>
-        ) : (
-          !loadingAll && <p className="text-[var(--color-brown)]/70">Listelenecek yazı bulunamadı.</p>
-        )}
-      </section>
-
-      {/* Hakkımızda (kısa) */}
-      <section className="mt-12">
-        <h2 className="mb-3 font-serif text-2xl text-[var(--color-purple)]">Hakkımızda</h2>
-        <p className="text-[var(--color-brown)]/80">
-          Dergi Lumin; kültür, sanat ve edebiyat odağında genç kalemlerin sesini duyurmayı hedefleyen
-          dijital bir dergidir. Minimal ve okunabilir tasarım ile içerik odağını korur.
-        </p>
-      </section>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -2,22 +2,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { collection, query, orderBy, where, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useCollection } from "react-firebase-hooks/firestore";
-import { db, storage } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { deleteObject, ref as storageRef } from "firebase/storage";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 type AdminTab = "overview" | "published" | "drafts" | "collab";
 
 export default function AdminHome() {
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [authUser] = useAuthState(auth);
 
   const col = collection(db, "dergi");
   const qAll = query(col, orderBy("publishedAt", "desc"));
   const [allSnap, loading] = useCollection(qAll);
-
-  const qDrafts = query(col, where("publishedAt", "==", null), orderBy("title", "asc"));
-  const [draftSnap, loadingDrafts] = useCollection(qDrafts);
 
   const onDelete = async (id: string, coverPath?: string) => {
     if (!confirm("Bu dergiyi silmek istediğinize emin misiniz?")) return;
@@ -30,12 +29,27 @@ export default function AdminHome() {
   };
 
   const onPublish = async (id: string) => {
-    await updateDoc(doc(db, "dergi", id), { publishedAt: serverTimestamp() });
+    const lastEditedById = authUser?.uid || null;
+    const lastEditedByName = authUser?.displayName || authUser?.email || null;
+    await updateDoc(doc(db, "dergi", id), {
+      status: "published",
+      publishedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...(lastEditedById ? { lastEditedById } : {}),
+      ...(lastEditedByName ? { lastEditedByName } : {}),
+    });
   };
 
   const allDocs = allSnap?.docs || [];
-  const publishedDocs = allDocs.filter((d) => (d.data() as any)?.publishedAt);
-  const draftDocs = draftSnap?.docs || [];
+  const publishedDocs = allDocs.filter((d) => {
+    const data = d.data() as any;
+    return data?.status === "published" || !!data?.publishedAt;
+  });
+  const draftDocs = allDocs.filter((d) => {
+    const data = d.data() as any;
+    // Legacy docs: status yoksa publishedAt null => taslak kabul
+    return data?.status === "draft" || (!data?.publishedAt && data?.status !== "published");
+  });
 
   return (
     <ProtectedRoute>
@@ -115,6 +129,8 @@ export default function AdminHome() {
                   )}
                   {publishedDocs.slice(0, 4).map((docu) => {
                     const d = docu.data() as any;
+                    const author = d.authorName || "-";
+                    const lastEditor = d.lastEditedByName || author;
                     return (
                       <div
                         key={docu.id}
@@ -124,7 +140,8 @@ export default function AdminHome() {
                           <div className="truncate text-[var(--color-brown)] text-sm">
                             {d.title || "Başlıksız"}
                           </div>
-                          <div className="text-[10px] text-[var(--color-brown)]/60">Yayınlanan yazı</div>
+                          <div className="text-[10px] text-[var(--color-brown)]/60">Yazar: {author}</div>
+                          <div className="text-[10px] text-[var(--color-brown)]/60">Son düzenleyen: {lastEditor}</div>
                         </div>
                         <Link
                           href={`/magazine/${docu.id}`}
@@ -150,12 +167,14 @@ export default function AdminHome() {
                   </button>
                 </div>
                 <div className="space-y-2 text-sm">
-                  {loadingDrafts && <p className="text-[var(--color-brown)]/60">Yükleniyor...</p>}
-                  {!loadingDrafts && !draftDocs.length && (
+                  {loading && <p className="text-[var(--color-brown)]/60">Yükleniyor...</p>}
+                  {!loading && !draftDocs.length && (
                     <p className="text-[var(--color-brown)]/60">Henüz kaydedilmiş taslak yok.</p>
                   )}
                   {draftDocs.slice(0, 5).map((docu) => {
                     const d = docu.data() as any;
+                    const author = d.authorName || "-";
+                    const lastEditor = d.lastEditedByName || author;
                     return (
                       <div
                         key={docu.id}
@@ -165,7 +184,22 @@ export default function AdminHome() {
                           <div className="truncate text-[var(--color-brown)] text-sm">
                             {d.title || "Başlıksız Taslak"}
                           </div>
-                          <div className="text-[10px] text-[var(--color-brown)]/60">Yayınlanmayı bekliyor</div>
+                          <div className="text-[10px] text-[var(--color-brown)]/60">Yazar: {author}</div>
+                          <div className="text-[10px] text-[var(--color-brown)]/60">Son düzenleyen: {lastEditor}</div>
+                        </div>
+                        <div className="ml-3 flex items-center gap-2">
+                          <Link
+                            href={`/admin/new?id=${docu.id}`}
+                            className="text-xs text-[var(--color-purple)] hover:underline whitespace-nowrap"
+                          >
+                            Düzenle
+                          </Link>
+                          <Link
+                            href={`/admin/preview/${docu.id}`}
+                            className="text-xs text-[var(--color-purple)] hover:underline whitespace-nowrap"
+                          >
+                            Ön İzle
+                          </Link>
                         </div>
                       </div>
                     );
@@ -186,6 +220,8 @@ export default function AdminHome() {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {publishedDocs.map((docu) => {
                 const d = docu.data() as any;
+                const author = d.authorName || "-";
+                const lastEditor = d.lastEditedByName || author;
                 return (
                   <div
                     key={docu.id}
@@ -196,6 +232,8 @@ export default function AdminHome() {
                       <h3 className="font-serif text-lg text-[var(--color-brown)] line-clamp-2">
                         {d.title || "Başlıksız"}
                       </h3>
+                      <div className="mt-1 text-[11px] text-[var(--color-brown)]/60">Yazar: {author}</div>
+                      <div className="text-[11px] text-[var(--color-brown)]/60">Son düzenleyen: {lastEditor}</div>
                       <div className="mt-3 flex flex-wrap gap-2 text-sm">
                         <Link href={`/magazine/${docu.id}`} className="underline text-[var(--color-purple)]">
                           Görüntüle
@@ -222,10 +260,12 @@ export default function AdminHome() {
               <h2 className="font-serif text-2xl text-[var(--color-purple)]">Taslaklar</h2>
               <p className="text-xs text-[var(--color-brown)]/70">Yayınlanmamış içerikleri gözden geçir.</p>
             </div>
-            {loadingDrafts && <p className="text-[var(--color-brown)]/60">Yükleniyor...</p>}
+            {loading && <p className="text-[var(--color-brown)]/60">Yükleniyor...</p>}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {draftDocs.map((docu) => {
                 const d = docu.data() as any;
+                const author = d.authorName || "-";
+                const lastEditor = d.lastEditedByName || author;
                 return (
                   <div
                     key={docu.id}
@@ -236,7 +276,21 @@ export default function AdminHome() {
                       <h3 className="font-serif text-lg text-[var(--color-brown)] line-clamp-2">
                         {d.title || "Başlıksız Taslak"}
                       </h3>
+                      <div className="mt-1 text-[11px] text-[var(--color-brown)]/60">Yazar: {author}</div>
+                      <div className="text-[11px] text-[var(--color-brown)]/60">Son düzenleyen: {lastEditor}</div>
                       <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                        <Link
+                          href={`/admin/new?id=${docu.id}`}
+                          className="text-[var(--color-purple)] underline"
+                        >
+                          Düzenle
+                        </Link>
+                        <Link
+                          href={`/admin/preview/${docu.id}`}
+                          className="text-[var(--color-purple)] underline"
+                        >
+                          Ön İzle
+                        </Link>
                         <button
                           type="button"
                           onClick={() => onPublish(docu.id)}

@@ -1,5 +1,13 @@
 {
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
-  "less.lint.unknownAtRules": "ignore"
+  "less.lint.unknownAtRules": "ignore",
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/node_modules/html2canvas/**": true
+  },
+  "search.exclude": {
+    "**/node_modules/html2canvas/**": true
+  }
 }
