@@ -3,7 +3,6 @@ import { useNavigationLock } from "@/context/NavigationLockContext";
 import { usePathname } from "next/navigation";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
-import { isAdminEmail } from "@/lib/adminAllowlist";
 
 export default function LockToggleButton() {
   const { isLocked, toggle } = useNavigationLock();
@@ -12,10 +11,10 @@ export default function LockToggleButton() {
 
   if (loading) return null;
 
-  const isAdmin = !!user && isAdminEmail(user.email || undefined);
+  const isLoggedIn = !!user;
   const isAllowedPath = !!pathname && (pathname === "/admin" || pathname === "/admin/new" || pathname.startsWith("/magazine/"));
 
-  if (!isAdmin || !isAllowedPath) return null;
+  if (!isLoggedIn || !isAllowedPath) return null;
 
   return (
     <button

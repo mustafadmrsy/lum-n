@@ -1,17 +1,20 @@
 "use client";
+export const dynamic = "force-dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import TextLayerEditor, { type TextLayer } from "@/components/TextLayerEditor";
 import { useNavigationLock } from "@/context/NavigationLockContext";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function NewMagazinePage() {
   const router = useRouter();
   const { isLocked, setLocked } = useNavigationLock();
+  const [authUser] = useAuthState(auth);
   // Flip-style editor: array of pages; each page has positioned text layers
   type SimplePage = { id: number; layers: TextLayer[]; backgroundColor?: string };
   const [pages, setPages] = useState<SimplePage[]>([
@@ -32,6 +35,7 @@ export default function NewMagazinePage() {
   const [gridEnabled, setGridEnabled] = useState(false);
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [guidesEnabled, setGuidesEnabled] = useState(false);
+  const [title, setTitle] = useState("");
 
   const fontOptions = [
     // generic
@@ -158,9 +162,53 @@ export default function NewMagazinePage() {
           return `<div class=\"page\" style=\"position:relative;width:${pageWidth}px;height:${pageHeight}px;padding:${padding}px;box-sizing:border-box;background:white;\">${layersHtml}</div>`;
         })
         .join('<hr class="page-break" />');
+
+      // Basit excerpt: ilk 300 karakterlik HTML
+      const excerpt = content.slice(0, 300);
+
+      const nowTitle = title.trim() || "Başlıksız Yazı";
+      const baseSlug = nowTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9ığüşöç\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "") || "yazi";
+
+      const authorId = authUser?.uid || "anonymous";
+      const authorName = authUser?.displayName || authUser?.email || "Bilinmeyen";
+
+      const status = publish ? "published" : "draft";
+
       await setDoc(refDoc, {
+        // Temel
+        title: nowTitle,
+        slug: baseSlug,
+        status,
+
+        // İçerik
         content,
+        excerpt,
+        editorPages: pages.map((p) => ({
+          id: p.id,
+          backgroundColor: p.backgroundColor || "#ffffff",
+          layers: p.layers,
+        })),
+
+        // Yazar bilgisi
+        authorId,
+        authorName,
+
+        // Kategori / etiket / medya alanları başlangıçta boş
+        categories: [],
+        tags: [],
+        editorNotes: [],
+        media: [],
+
+        // Zamanlar
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         publishedAt: publish ? serverTimestamp() : null,
+        scheduledAt: null,
       });
 
       router.replace("/admin");
@@ -288,7 +336,17 @@ export default function NewMagazinePage() {
   return (
     <ProtectedRoute>
       <div className="mx-auto max-w-5xl px-4 py-6">
-        <h1 className="mb-6 font-serif text-3xl text-[var(--color-purple)]">Yeni Dergi Yazısı</h1>
+        <h1 className="mb-3 font-serif text-3xl text-[var(--color-purple)]">Yeni Dergi Yazısı</h1>
+        <div className="mb-5 space-y-2">
+          <label className="block text-sm text-[var(--color-brown)]">Başlık</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-pink)]"
+            placeholder="Örn. Big Boss, Kapak Yazısı, Röportaj..."
+          />
+        </div>
         <div className="space-y-4">
           {/* FlipHTML5-like editor */}
           <div>
