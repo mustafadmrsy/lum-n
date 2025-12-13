@@ -57,7 +57,26 @@ export function useMagazineEditor({
         if (!cancelled) {
           if (typeof data?.title === "string") setTitle(data.title);
           if (typeof data?.coverImageUrl === "string") setCoverImageUrl(data.coverImageUrl);
-          const incomingPages = Array.isArray(data?.editorPages) ? data.editorPages : null;
+          const rawPages =
+            data?.editorPages ??
+            data?.editor_pages ??
+            data?.pages ??
+            data?.editorPageData ??
+            null;
+
+          const incomingPages =
+            Array.isArray(rawPages)
+              ? rawPages
+              : typeof rawPages === "string"
+                ? (() => {
+                    try {
+                      const parsed = JSON.parse(rawPages);
+                      return Array.isArray(parsed) ? parsed : null;
+                    } catch {
+                      return null;
+                    }
+                  })()
+                : null;
           if (incomingPages && incomingPages.length) {
             const normalized = incomingPages.map((p: any) => ({
               id: p?.id ?? Date.now(),

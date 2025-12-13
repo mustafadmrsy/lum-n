@@ -189,6 +189,7 @@ export default function NewMagazineClient({ docId }: { docId: string | null }) {
         <CoverImageModal
           open={coverModalOpen}
           initialUrl={coverImageUrl}
+          userEmail={authUser?.email || ""}
           onClose={() => setCoverModalOpen(false)}
           onSave={(url) => setCoverImageUrl(url)}
         />

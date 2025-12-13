@@ -5,22 +5,36 @@ import { useEffect, useRef, useState } from "react";
 export default function CoverImageModal({
   open,
   initialUrl,
+  userEmail,
   onClose,
   onSave,
 }: {
   open: boolean;
   initialUrl: string;
+  userEmail: string;
   onClose: () => void;
   onSave: (url: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [draftUrl, setDraftUrl] = useState<string>(initialUrl || "");
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setDraftUrl(initialUrl || "");
+    setPreviewUrl("");
+    setError(null);
+    setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
   }, [open, initialUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   if (!open) return null;
 
@@ -49,15 +63,52 @@ export default function CoverImageModal({
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => {
+            onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
-              const reader = new FileReader();
-              reader.onload = () => {
-                const result = typeof reader.result === "string" ? reader.result : "";
-                if (result) setDraftUrl(result);
-              };
-              reader.readAsDataURL(f);
+              setError(null);
+
+              const localPreview = URL.createObjectURL(f);
+              if (previewUrl) URL.revokeObjectURL(previewUrl);
+              setPreviewUrl(localPreview);
+
+              setUploading(true);
+              try {
+                const res = await fetch("/api/uploads/presign", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    fileName: f.name,
+                    contentType: f.type,
+                    size: f.size,
+                    userEmail,
+                  }),
+                });
+
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({}));
+                  throw new Error(data?.error || "Presign alınamadı");
+                }
+
+                const data = (await res.json()) as { uploadUrl: string; publicUrl: string };
+                if (!data?.uploadUrl || !data?.publicUrl) throw new Error("Presign yanıtı eksik");
+
+                const put = await fetch(data.uploadUrl, {
+                  method: "PUT",
+                  headers: { "Content-Type": f.type },
+                  body: f,
+                });
+
+                if (!put.ok) {
+                  throw new Error("Yükleme başarısız");
+                }
+
+                setDraftUrl(data.publicUrl);
+              } catch (err: any) {
+                setError(err?.message || "Yükleme hatası");
+              } finally {
+                setUploading(false);
+              }
             }}
           />
 
@@ -65,9 +116,9 @@ export default function CoverImageModal({
             <div className="sm:sticky sm:top-0">
               <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
                 <div className="aspect-[3/4] w-full">
-                  {draftUrl ? (
+                  {previewUrl || draftUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={draftUrl} alt="Kapak" className="h-full w-full object-cover" />
+                    <img src={previewUrl || draftUrl} alt="Kapak" className="h-full w-full object-cover" />
                   ) : (
                     <div className="relative h-full w-full bg-gradient-to-br from-[var(--color-pink)]/60 to-[var(--color-purple)]/70">
                       <div className="absolute inset-0 grid place-items-center p-4">
@@ -89,7 +140,7 @@ export default function CoverImageModal({
                     className="w-full rounded-full px-4 py-2 border border-black/10 bg-white text-sm text-[var(--color-brown)]/80 hover:border-[var(--color-purple)] hover:text-[var(--color-purple)] transition-colors"
                     onClick={() => fileRef.current?.click()}
                   >
-                    {draftUrl ? "Kapağı değiştir" : "Dosya seç"}
+                    {uploading ? "Yükleniyor..." : draftUrl ? "Kapağı değiştir" : "Dosya seç"}
                   </button>
 
                   <button
@@ -97,13 +148,17 @@ export default function CoverImageModal({
                     className="w-full rounded-full px-4 py-2 border border-black/10 bg-white text-sm text-[var(--color-brown)]/80 hover:border-[var(--color-purple)] hover:text-[var(--color-purple)] transition-colors disabled:opacity-50 disabled:hover:border-black/10 disabled:hover:text-[var(--color-brown)]/80 disabled:cursor-not-allowed"
                     onClick={() => {
                       setDraftUrl("");
+                      setPreviewUrl("");
+                      setError(null);
                       if (fileRef.current) fileRef.current.value = "";
                     }}
-                    disabled={!draftUrl}
+                    disabled={!draftUrl || uploading}
                   >
                     Kaldır
                   </button>
                 </div>
+
+                {error && <div className="mt-3 text-[11px] text-red-600">{error}</div>}
 
                 <div className="mt-3 text-[11px] text-[var(--color-brown)]/60">3:4</div>
               </div>
@@ -133,6 +188,7 @@ export default function CoverImageModal({
             <button
               type="button"
               className="rounded-full px-4 py-2 btn-primary text-sm"
+              disabled={uploading}
               onClick={() => {
                 onSave(draftUrl);
                 onClose();

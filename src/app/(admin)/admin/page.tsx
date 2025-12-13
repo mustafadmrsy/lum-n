@@ -222,12 +222,20 @@ export default function AdminHome() {
                 const d = docu.data() as any;
                 const author = d.authorName || "-";
                 const lastEditor = d.lastEditedByName || author;
+                const cover = d.coverImageUrl || d.coverImage || null;
                 return (
                   <div
                     key={docu.id}
                     className="rounded-2xl border border-black/5 overflow-hidden bg-white shadow-sm flex flex-col"
                   >
-                    <div className="aspect-[3/4] w-full bg-gradient-to-br from-[var(--color-pink)] to-[var(--color-purple)]" />
+                    <div className="aspect-[3/4] w-full">
+                      {cover ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={cover} alt={d.title || "Kapak"} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-[var(--color-pink)] to-[var(--color-purple)]" />
+                      )}
+                    </div>
                     <div className="p-4 flex flex-1 flex-col">
                       <h3 className="font-serif text-lg text-[var(--color-brown)] line-clamp-2">
                         {d.title || "Başlıksız"}
@@ -266,12 +274,20 @@ export default function AdminHome() {
                 const d = docu.data() as any;
                 const author = d.authorName || "-";
                 const lastEditor = d.lastEditedByName || author;
+                const cover = d.coverImageUrl || d.coverImage || null;
                 return (
                   <div
                     key={docu.id}
                     className="rounded-2xl border border-black/5 overflow-hidden bg-white shadow-sm flex flex-col"
                   >
-                    <div className="aspect-[3/4] w-full bg-white" />
+                    <div className="aspect-[3/4] w-full">
+                      {cover ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={cover} alt={d.title || "Kapak"} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full bg-white" />
+                      )}
+                    </div>
                     <div className="p-4 flex flex-1 flex-col">
                       <h3 className="font-serif text-lg text-[var(--color-brown)] line-clamp-2">
                         {d.title || "Başlıksız Taslak"}
