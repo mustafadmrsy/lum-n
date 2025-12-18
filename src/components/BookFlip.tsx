@@ -1,12 +1,29 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigationLock } from "@/context/NavigationLockContext";
 
-export default function BookFlip({ pages, mode = "toggle" }: { pages: string[]; mode?: "toggle" | "alwaysFlip" }) {
+export type BookFlipHandle = {
+  next: () => void;
+  prev: () => void;
+  goTo: (pageIndex: number) => void;
+};
+
+type Props = {
+  pages: string[];
+  mode?: "toggle" | "alwaysFlip";
+  initialPage?: number;
+  onPageChange?: (info: { page: number; total: number }) => void;
+};
+
+const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
+  { pages, mode = "toggle", initialPage = 0, onPageChange }: Props,
+  ref
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 520, height: 650 });
   const [FlipComp, setFlipComp] = useState<any>(null);
   const { isLocked } = useNavigationLock();
+  const bookRef = useRef<any>(null);
 
   const scale = Math.min(size.width / 560, size.height / 700);
   const scaledWidth = Math.floor(560 * scale);
@@ -19,6 +36,51 @@ export default function BookFlip({ pages, mode = "toggle" }: { pages: string[]; 
     }).catch(() => setFlipComp(null));
     return () => { mounted = false; };
   }, []);
+
+  const total = pages.length;
+  const [currentPage, setCurrentPage] = useState(0);
+  useEffect(() => {
+    if (!onPageChange) return;
+    onPageChange({ page: Math.min(Math.max(0, initialPage), Math.max(0, total - 1)), total });
+  }, [onPageChange, initialPage, total]);
+
+  const safeInitial = useMemo(() => Math.min(Math.max(0, initialPage), Math.max(0, total - 1)), [initialPage, total]);
+
+  useEffect(() => {
+    setCurrentPage(safeInitial);
+  }, [safeInitial]);
+
+  const emitPage = useCallback(
+    (page: number) => {
+      if (!onPageChange) return;
+      const p = Math.min(Math.max(0, page), Math.max(0, total - 1));
+      onPageChange({ page: p, total });
+    },
+    [onPageChange, total]
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      next: () => {
+        try {
+          bookRef.current?.pageFlip?.()?.flipNext?.();
+        } catch {}
+      },
+      prev: () => {
+        try {
+          bookRef.current?.pageFlip?.()?.flipPrev?.();
+        } catch {}
+      },
+      goTo: (pageIndex: number) => {
+        try {
+          bookRef.current?.pageFlip?.()?.turnToPage?.(pageIndex);
+          emitPage(pageIndex);
+        } catch {}
+      },
+    }),
+    [emitPage]
+  );
 
   useEffect(() => {
     const onResize = () => {
@@ -63,15 +125,20 @@ export default function BookFlip({ pages, mode = "toggle" }: { pages: string[]; 
 
   const shouldShowFlip = mode === "alwaysFlip" || !isLocked;
   const flipKey = `${pages.length}-${pages[0]?.length ?? 0}-${pages[pages.length - 1]?.length ?? 0}`;
+  const coverShift = shouldShowFlip && safeInitial === 0 && currentPage === 0 ? Math.floor(size.width / 2) : 0;
 
   // FlipComp yüklendiğinde: hem flip hem statik görünümü aynı anda render et,
   // kilit durumuna göre sadece biri görünür olsun; böylece sayfa state'i korunur.
   return (
     <div ref={containerRef} className="w-full flex justify-center">
       <div className="w-full max-w-5xl flex justify-center">
-        <div className={shouldShowFlip ? "block" : "hidden"}>
+        <div
+          className={shouldShowFlip ? "block" : "hidden"}
+          style={{ transform: coverShift ? `translateX(-${coverShift}px)` : undefined, transition: "transform 200ms ease" }}
+        >
           <HTMLFlipBook
             key={flipKey}
+            ref={bookRef}
             width={size.width}
             height={size.height}
             className="shadow-xl rounded-md"
@@ -80,6 +147,12 @@ export default function BookFlip({ pages, mode = "toggle" }: { pages: string[]; 
             mobileScrollSupport={true}
             maxShadowOpacity={0.3}
             useMouseEvents={true}
+            startPage={safeInitial}
+            onFlip={(e: any) => {
+              const p = typeof e?.data === "number" ? e.data : typeof e?.page === "number" ? e.page : 0;
+              setCurrentPage(p);
+              emitPage(p);
+            }}
           >
             {pages.map((html, i) => (
               <div key={i} className="bg-white font-serif text-[var(--color-brown)]" style={{ overflow: "hidden" }}>
@@ -117,4 +190,6 @@ export default function BookFlip({ pages, mode = "toggle" }: { pages: string[]; 
       </div>
     </div>
   );
-}
+});
+
+export default BookFlip;

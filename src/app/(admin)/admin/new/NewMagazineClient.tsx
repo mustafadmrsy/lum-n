@@ -14,6 +14,24 @@ import { useMagazineEditor } from "./useMagazineEditor";
 import EditorSidebar from "./EditorSidebar";
 import EditorCanvas from "./EditorCanvas";
 
+const CATEGORY_OPTIONS = [
+  "Gündem",
+  "Kültür & Sanat",
+  "Edebiyat",
+  "Yaşam",
+  "Sağlık",
+  "Teknoloji",
+  "Seyahat",
+  "Tasarım & Moda",
+  "Müzik",
+  "Sinema & TV",
+  "Tarih",
+  "Ekonomi & İş Dünyası",
+  "Sosyal Medya & Dijital",
+  "Eğitim",
+  "Spor",
+] as const;
+
 export default function NewMagazineClient({ docId }: { docId: string | null }) {
   const router = useRouter();
   const { isLocked } = useNavigationLock();
@@ -48,6 +66,8 @@ export default function NewMagazineClient({ docId }: { docId: string | null }) {
     setGuidesEnabled,
     title,
     setTitle,
+    category,
+    setCategory,
     coverImageUrl,
     setCoverImageUrl,
     applyPages,
@@ -104,6 +124,22 @@ export default function NewMagazineClient({ docId }: { docId: string | null }) {
             className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-pink)]"
             placeholder="Örn. Big Boss, Kapak Yazısı, Röportaj..."
           />
+        </div>
+
+        <div className="mb-5 space-y-2">
+          <label className="block text-sm text-[var(--color-brown)]">Kategori</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-pink)]"
+          >
+            <option value="">Kategori seç</option>
+            {CATEGORY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-4">
           <div>

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import AppFrame from "@/components/AppFrame";
 import { NavigationLockProvider } from "@/context/NavigationLockContext";
 import NavigationGuard from "@/components/NavigationGuard";
 import LockToggleButton from "@/components/LockToggleButton";
@@ -32,13 +31,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${playfair.variable} antialiased text-[color:var(--color-brown)]`}>
         <NavigationLockProvider>
           <NavigationGuard />
-          <div className="min-h-screen flex flex-col">
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          <AppFrame>{children}</AppFrame>
           <LockToggleButton />
         </NavigationLockProvider>
       </body>

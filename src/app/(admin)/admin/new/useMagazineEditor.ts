@@ -36,6 +36,7 @@ export function useMagazineEditor({
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [guidesEnabled, setGuidesEnabled] = useState(false);
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
@@ -56,6 +57,11 @@ export function useMagazineEditor({
         const data = snap.data() as any;
         if (!cancelled) {
           if (typeof data?.title === "string") setTitle(data.title);
+          if (typeof data?.category === "string") {
+            setCategory(data.category);
+          } else if (Array.isArray(data?.categories) && typeof data.categories[0] === "string") {
+            setCategory(data.categories[0]);
+          }
           if (typeof data?.coverImageUrl === "string") setCoverImageUrl(data.coverImageUrl);
           const rawPages =
             data?.editorPages ??
@@ -242,10 +248,13 @@ export function useMagazineEditor({
       const lastEditedByName = authorName;
       const status = publish ? "published" : "draft";
 
+      const categoryValue = category.trim();
+
       const payload: any = {
         title: nowTitle,
         slug: baseSlug,
         status,
+        category: categoryValue || null,
         coverImageUrl: coverImageUrl.trim() || null,
         content,
         excerpt,
@@ -258,7 +267,7 @@ export function useMagazineEditor({
         authorName,
         lastEditedById,
         lastEditedByName,
-        categories: [],
+        categories: categoryValue ? [categoryValue] : [],
         tags: [],
         editorNotes: [],
         media: [],
@@ -310,6 +319,8 @@ export function useMagazineEditor({
     setGuidesEnabled,
     title,
     setTitle,
+    category,
+    setCategory,
     coverImageUrl,
     setCoverImageUrl,
     loadingExisting,
