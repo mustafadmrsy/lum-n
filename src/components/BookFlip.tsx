@@ -12,11 +12,12 @@ type Props = {
   pages: string[];
   mode?: "toggle" | "alwaysFlip";
   initialPage?: number;
+  showSpreadDivider?: boolean;
   onPageChange?: (info: { page: number; total: number }) => void;
 };
 
 const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
-  { pages, mode = "toggle", initialPage = 0, onPageChange }: Props,
+  { pages, mode = "toggle", initialPage = 0, showSpreadDivider = false, onPageChange }: Props,
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -45,6 +46,8 @@ const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
   }, [onPageChange, initialPage, total]);
 
   const safeInitial = useMemo(() => Math.min(Math.max(0, initialPage), Math.max(0, total - 1)), [initialPage, total]);
+
+  const shouldRenderDividerStatic = showSpreadDivider && total > 1 && safeInitial > 0 && safeInitial < total - 1;
 
   useEffect(() => {
     setCurrentPage(safeInitial);
@@ -88,8 +91,12 @@ const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
       if (!el) return;
       // Our editor pages are 560x700 (ratio 1.25). Width prop is single-page width.
       // We aim for a two-page spread, so we base the page width on half container.
-      const pageMaxW = Math.min(560, Math.max(320, Math.floor(el.clientWidth / 2) - 16));
-      const width = pageMaxW;
+      const availableW = el.clientWidth;
+      const availableH = el.clientHeight;
+      const maxByWidth = Math.floor(availableW / 2) - 16;
+      const maxByHeight = Math.floor((availableH - 16) * (560 / 700));
+      const pageMaxW = Math.min(560, maxByWidth, maxByHeight);
+      const width = Math.max(240, pageMaxW);
       const height = Math.floor(width * (700 / 560));
       setSize({ width, height });
     };
@@ -101,8 +108,8 @@ const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
   // Flip bileşeni henüz yüklenmemişse: eski fallback statik görünüm
   if (!FlipComp) {
     return (
-      <div ref={containerRef} className="w-full flex justify-center">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 w-full max-w-5xl">
+      <div ref={containerRef} className="w-full h-full flex justify-center relative">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 w-full h-full max-w-5xl">
           {pages.slice(0, 2).map((html, i) => (
             <div key={i} className="bg-white shadow border border-black/10">
               <div className="flex items-start justify-center" style={{ width: size.width, height: size.height, overflow: "hidden" }}>
@@ -117,6 +124,10 @@ const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
             </div>
           ))}
         </div>
+
+        {shouldRenderDividerStatic ? (
+          <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 h-full w-px bg-black/20" />
+        ) : null}
       </div>
     );
   }
@@ -126,12 +137,13 @@ const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
   const shouldShowFlip = mode === "alwaysFlip" || !isLocked;
   const flipKey = `${pages.length}-${pages[0]?.length ?? 0}-${pages[pages.length - 1]?.length ?? 0}`;
   const coverShift = shouldShowFlip && safeInitial === 0 && currentPage === 0 ? Math.floor(size.width / 2) : 0;
+  const shouldRenderDivider = showSpreadDivider && total > 1 && coverShift === 0 && currentPage > 0 && currentPage < total - 1;
 
   // FlipComp yüklendiğinde: hem flip hem statik görünümü aynı anda render et,
   // kilit durumuna göre sadece biri görünür olsun; böylece sayfa state'i korunur.
   return (
-    <div ref={containerRef} className="w-full flex justify-center">
-      <div className="w-full max-w-5xl flex justify-center">
+    <div ref={containerRef} className="w-full h-full flex justify-center relative">
+      <div className="w-full h-full max-w-5xl flex justify-center">
         <div
           className={shouldShowFlip ? "block" : "hidden"}
           style={{ transform: coverShift ? `translateX(-${coverShift}px)` : undefined, transition: "transform 200ms ease" }}
@@ -188,6 +200,10 @@ const BookFlip = forwardRef<BookFlipHandle, Props>(function BookFlip(
           </div>
         </div>
       </div>
+
+      {shouldRenderDivider ? (
+        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 h-full w-px bg-black/20" />
+      ) : null}
     </div>
   );
 });

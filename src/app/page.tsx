@@ -33,9 +33,6 @@ export default function Home() {
     return data?.status === "published" || !!data?.publishedAt;
   }) || [];
 
-  const featured = published[0] ?? null;
-  const rest = featured ? published.slice(1) : published;
-
   const [activeCategory, setActiveCategory] = useState<string>("Tümü");
 
   const knownCategories = useMemo(() => new Set<string>(CATEGORY_OPTIONS as unknown as string[]), []);
@@ -55,20 +52,24 @@ export default function Home() {
     return ["Tümü", ...CATEGORY_OPTIONS, "Diğer"];
   }, []);
 
-  const filtered = useMemo(() => {
-    if (activeCategory === "Tümü") return rest;
-
-    return rest.filter((docu) => {
+  const scopedPublished = useMemo(() => {
+    if (activeCategory === "Tümü") return published;
+    return published.filter((docu) => {
       const d = docu.data() as any;
       return normalizeCategory(d) === activeCategory;
     });
-  }, [activeCategory, rest, normalizeCategory]);
+  }, [activeCategory, published, normalizeCategory]);
+
+  const featured = scopedPublished[0] ?? null;
+  const filtered = useMemo(() => {
+    return scopedPublished;
+  }, [scopedPublished]);
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();
     for (const t of categoryTabs) m.set(t, 0);
 
-    for (const docu of rest) {
+    for (const docu of published) {
       const d = docu.data() as any;
       const cat = normalizeCategory(d);
       m.set("Tümü", (m.get("Tümü") || 0) + 1);
@@ -76,7 +77,7 @@ export default function Home() {
     }
 
     return m;
-  }, [rest, categoryTabs, normalizeCategory]);
+  }, [published, categoryTabs, normalizeCategory]);
 
   const renderCard = (docu: any) => {
     const d = docu.data() as any;
@@ -175,7 +176,7 @@ export default function Home() {
               })}
             </div>
 
-            {filtered.length === 0 ? (
+            {scopedPublished.length === 0 ? (
               <div className="rounded-xl border border-black/10 bg-white/70 p-6 text-center text-sm text-[var(--color-brown)]/70">
                 Bu kategoride henüz yayın yok.
               </div>
