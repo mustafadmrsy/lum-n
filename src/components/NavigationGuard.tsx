@@ -46,12 +46,7 @@ export default function NavigationGuard() {
       const target = resolveTarget(e.target);
       if (!target) return;
       if (target.closest('.flip-book-root') && !target.closest('.z-10')) {
-        if (isEditableTarget(target)) {
-          // Allow focus/typing but do not let the event reach FlipBook
-          (e as any).stopImmediatePropagation?.();
-          e.stopPropagation();
-          return;
-        }
+        if (isEditableTarget(target)) return;
         e.preventDefault();
         (e as any).stopImmediatePropagation?.();
         e.stopPropagation();
@@ -101,12 +96,7 @@ export default function NavigationGuard() {
       if (!isLocked) return;
       const target = resolveTarget(e.target);
       if (target && target.closest('.flip-book-root') && !target.closest('.z-10')) {
-        if (isEditableTarget(target)) {
-          // Let draggable/editable elements work but block FlipBook from seeing the event
-          (e as any).stopImmediatePropagation?.();
-          e.stopPropagation();
-          return;
-        }
+        if (isEditableTarget(target)) return;
         e.preventDefault();
         (e as any).stopImmediatePropagation?.();
         e.stopPropagation();
@@ -114,9 +104,9 @@ export default function NavigationGuard() {
     }
 
     document.addEventListener("click", onClick, true);
-    document.addEventListener("mousedown", blockPointer, { capture: true });
-    document.addEventListener("pointerdown", blockPointer, { capture: true });
-    document.addEventListener("touchstart", blockPointer, { capture: true, passive: false as any });
+    document.addEventListener("mousedown", blockPointer);
+    document.addEventListener("pointerdown", blockPointer);
+    document.addEventListener("touchstart", blockPointer, { passive: false as any });
     document.addEventListener("auxclick", onAuxClick, true);
     window.addEventListener("keydown", onKeyDown, true);
     function onWheel(e: WheelEvent) {
@@ -130,9 +120,9 @@ export default function NavigationGuard() {
     window.addEventListener("wheel", onWheel, { capture: true, passive: false });
     return () => {
       document.removeEventListener("click", onClick, true);
-      document.removeEventListener("mousedown", blockPointer, true);
-      document.removeEventListener("pointerdown", blockPointer, true);
-      document.removeEventListener("touchstart", blockPointer, true);
+      document.removeEventListener("mousedown", blockPointer);
+      document.removeEventListener("pointerdown", blockPointer);
+      document.removeEventListener("touchstart", blockPointer);
       document.removeEventListener("auxclick", onAuxClick, true);
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("wheel", onWheel, true);

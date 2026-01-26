@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigationLock } from "@/context/NavigationLockContext";
 
 export type TextLayer = {
   id: number;
@@ -34,18 +35,22 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const dragOffset = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const activeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const { isLocked, setLocked } = useNavigationLock();
+  const prevLockRef = useRef<boolean | null>(null);
 
   const selected = useMemo(() => layers.find((l) => l.id === selectedId) || null, [layers, selectedId]);
 
   const updateLayer = useCallback(
     (id: number, patch: Partial<TextLayer>) => {
       const next = layers.map((l) => (l.id === id ? { ...l, ...patch } : l));
+      const isPositionPatch = "x" in patch || "y" in patch;
       // Sürükleme sırasında yapılan pozisyon güncellemeleri history'e girmesin
-      if (draggingId && onChangeNoHistory) {
+      if (draggingId && onChangeNoHistory && isPositionPatch) {
         onChangeNoHistory(next);
-      } else {
-        onChange(next);
+        return;
       }
+      onChange(next);
     },
     [layers, onChange, onChangeNoHistory, draggingId]
   );
@@ -154,6 +159,27 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
     const exists = layers.some((l) => l.id === selectedIdExternal);
     if (exists) setSelectedId(selectedIdExternal);
   }, [selectedIdExternal, selectedId, layers]);
+
+  useEffect(() => {
+    if (!onSelectedChange) return;
+    // Avoid redundant emits when parent is the source of truth
+    if (selectedIdExternal === selectedId) return;
+    onSelectedChange({ pageId, layerId: selectedId });
+  }, [onSelectedChange, pageId, selectedId, selectedIdExternal]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const el = activeTextareaRef.current;
+    if (!el) return;
+    // Make sure focus survives FlipBook re-renders
+    requestAnimationFrame(() => {
+      try {
+        el.focus({ preventScroll: true } as any);
+      } catch {
+        el.focus();
+      }
+    });
+  }, [selectedId, layers]);
 
   const backgroundStyle: React.CSSProperties = {};
   if (showGrid) {
@@ -327,7 +353,35 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
                   <textarea
                     className="z-50 max-w-full resize rounded-xl border border-black/10 bg-white/95 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-purple)] focus:border-transparent"
                     data-editable
+                    ref={activeTextareaRef}
                     value={l.text}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(l.id);
+                      if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(l.id);
+                      if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(l.id);
+                      if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onFocus={() => {
+                      if (prevLockRef.current == null) prevLockRef.current = isLocked;
+                      setLocked(true);
+                    }}
+                    onBlur={() => {
+                      const prev = prevLockRef.current;
+                      prevLockRef.current = null;
+                      if (prev != null) setLocked(prev);
+                    }}
                     onChange={(e) => {
                       updateLayer(l.id, { text: e.target.value });
                     }}
@@ -345,7 +399,16 @@ export default function TextLayerEditor({ pageId, width, height, layers, onChang
                     }}
                   />
                 ) : (
-                  <div className="outline-none select-text z-50" data-editable style={{ whiteSpace: "pre-wrap" }} onMouseDown={() => setSelectedId(l.id)}>
+                  <div
+                    className="outline-none select-text z-50"
+                    data-editable
+                    style={{ whiteSpace: "pre-wrap" }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(l.id);
+                      if (onSelectedChange) onSelectedChange({ pageId, layerId: l.id });
+                    }}
+                  >
                     {l.text}
                   </div>
                 )}

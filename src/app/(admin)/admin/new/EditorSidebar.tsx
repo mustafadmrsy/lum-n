@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { TextLayer } from "@/components/TextLayerEditor";
 import { fontOptions } from "./fontOptions";
 
@@ -57,6 +58,16 @@ export default function EditorSidebar({
   setGuidesEnabled: (updater: (v: boolean) => boolean) => void;
 }) {
   if (!sidebarOpen) return null;
+
+  const [fontSizeDraft, setFontSizeDraft] = useState<string>("");
+
+  useEffect(() => {
+    if (!selectedLayer) {
+      setFontSizeDraft("");
+      return;
+    }
+    setFontSizeDraft(String(selectedLayer.fontSize ?? 18));
+  }, [selectedLayer?.id, selectedLayer?.fontSize]);
 
   return (
     <div className="fixed left-4 top-32 z-40 w-52 max-h-[520px] rounded-2xl border border-black/10 bg-white/95 shadow-xl backdrop-blur overflow-hidden">
@@ -312,18 +323,42 @@ export default function EditorSidebar({
                 onChange={(e) => updateSelectedLayer({ fontFamily: e.target.value })}
               >
                 {fontOptions.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
+                  <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>
+                    {f.label} — AaBb
                   </option>
                 ))}
               </select>
               <input
                 type="number"
                 className="w-full rounded border border-black/10 bg-white px-2 py-1 text-xs"
-                min={8}
-                max={96}
-                value={selectedLayer?.fontSize || 18}
-                onChange={(e) => updateSelectedLayer({ fontSize: Number(e.target.value || 18) })}
+                min={1}
+                max={256}
+                value={fontSizeDraft}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setFontSizeDraft(raw);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    (e.currentTarget as HTMLInputElement).blur();
+                  }
+                }}
+                onBlur={() => {
+                  if (!selectedLayer) return;
+                  const raw = fontSizeDraft.trim();
+                  if (raw === "") {
+                    setFontSizeDraft(String(selectedLayer.fontSize ?? 18));
+                    return;
+                  }
+                  const n = Number(raw);
+                  if (!Number.isFinite(n)) {
+                    setFontSizeDraft(String(selectedLayer.fontSize ?? 18));
+                    return;
+                  }
+                  const clamped = Math.min(256, Math.max(1, Math.round(n)));
+                  setFontSizeDraft(String(clamped));
+                  updateSelectedLayer({ fontSize: clamped });
+                }}
               />
               <div className="flex gap-2">
                 <button

@@ -76,7 +76,7 @@ export default function Navbar() {
         </Link>
         <nav className="flex items-center gap-4">
           {navItem("/", "Ana Sayfa")}
-          {navItem("/hakkinda", "Hakkında")}
+          {navItem("/aboutme", "Hakkında")}
 
           {!user && navItem("/login", "Giriş")}
 
