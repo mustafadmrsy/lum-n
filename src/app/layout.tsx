@@ -37,6 +37,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "Dergi Lumin",
   description: "Minimal dergi deneyimi",
+  icons: {
+    icon: [{ url: "/logos/lumin-logo.jpg" }],
+  },
   alternates: {
     canonical: "/",
   },
