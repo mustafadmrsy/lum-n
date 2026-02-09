@@ -31,9 +31,27 @@ const garamond = EB_Garamond({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.xn--lumn-nza.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Dergi Lumin",
   description: "Minimal dergi deneyimi",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "Dergi Lumin",
+    description: "Minimal dergi deneyimi",
+    siteName: "Dergi Lumin",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dergi Lumin",
+    description: "Minimal dergi deneyimi",
+  },
 };
 
 export default function RootLayout({
