@@ -38,7 +38,7 @@ export default function AdminDraftPreviewPage() {
   }, [data?.content]);
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireAdmin>
       <div className="mx-auto max-w-6xl px-4 py-10">
         {loading && <div className="text-sm text-[var(--color-brown)]/70">Yükleniyor...</div>}
         {!loading && !data && <div className="text-sm text-[var(--color-brown)]/70">Dergi bulunamadı.</div>}

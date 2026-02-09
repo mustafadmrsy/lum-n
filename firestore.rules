@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function adminEmail() {
+      return signedIn() && request.auth.token.email == "mustafadmrsy125@gmail.com";
+    }
+
+    function inviteDoc(token) {
+      return get(/databases/$(database)/documents/invites/$(token));
+    }
+
+    function inviteExistsAndUnused(token) {
+      return inviteDoc(token).exists() && inviteDoc(token).data.used == false;
+    }
+
+    function inviteNotExpired(token) {
+      return !("expiresAt" in inviteDoc(token).data) || inviteDoc(token).data.expiresAt == null || inviteDoc(token).data.expiresAt > request.time;
+    }
+
+    function inviteEmailMatches(token) {
+      return !("email" in inviteDoc(token).data) || inviteDoc(token).data.email == null || inviteDoc(token).data.email == request.auth.token.email;
+    }
+
+    function inviteRole(token) {
+      return ("role" in inviteDoc(token).data) && inviteDoc(token).data.role != null ? inviteDoc(token).data.role : "admin";
+    }
+
+    function isRedeemingInviteForSelf(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && ("inviteToken" in request.resource.data)
+        && request.resource.data.inviteToken is string
+        && inviteExistsAndUnused(request.resource.data.inviteToken)
+        && inviteNotExpired(request.resource.data.inviteToken)
+        && inviteEmailMatches(request.resource.data.inviteToken)
+        && ("role" in request.resource.data)
+        && request.resource.data.role == inviteRole(request.resource.data.inviteToken);
+    }
+
+    function isCreatingSelfUserDoc(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isCreatingOrUpdatingSelfWithoutRoleChange(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && !("role" in request.resource.data.diff(resource.data).changedKeys());
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if adminEmail() || (signedIn() && request.auth.uid == userId);
+      // User can create their own doc (no role assignment unless redeeming a valid invite)
+      allow create: if isCreatingSelfUserDoc(userId);
+      allow create: if isRedeemingInviteForSelf(userId);
+
+      // Normal profile update: user can update their own doc as long as they don't change role
+      allow update: if isCreatingOrUpdatingSelfWithoutRoleChange(userId);
+
+      // Invite redeem update: allow setting role + inviteToken when invite is valid
+      allow update: if isRedeemingInviteForSelf(userId);
+
+      allow delete: if false;
+    }
+
+    // Invites
+    match /invites/{token} {
+      allow read: if adminEmail();
+
+      // Only admin can create invites
+      allow create: if adminEmail();
+
+      // Allow admin to update/delete invites
+      allow update, delete: if adminEmail();
+
+      // Allow a signed-in user to mark an invite as used exactly once (during redeem)
+      // and prevent changing other fields.
+      allow update: if signedIn()
+        && resource.data.used == false
+        && request.resource.data.used == true
+        && request.resource.data.usedByUserId == request.auth.uid
+        && request.resource.data.token == resource.data.token
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && inviteNotExpired(token)
+        && inviteEmailMatches(token);
+    }
+
+    // Magazine content
+    match /dergi/{docId} {
+      allow read: if true;
+      allow write: if adminEmail();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

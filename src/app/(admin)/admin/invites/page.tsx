@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { db } from "@/lib/firebase";
-import { addDoc, collection, deleteDoc, doc, getDocs, limit, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 
 type Invite = {
   id: string;
@@ -49,10 +49,9 @@ export default function AdminInvitesPage() {
     setCreating(true);
     try {
       const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      const ref = collection(db, "invites");
       const now = new Date();
       const expires = new Date(now.getTime() + daysValid * 24 * 60 * 60 * 1000);
-      await addDoc(ref, {
+      await setDoc(doc(db, "invites", token), {
         token,
         email: email.trim() || null,
         role,
@@ -98,7 +97,7 @@ export default function AdminInvitesPage() {
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireAdmin>
       <div className="mx-auto max-w-4xl px-4 py-6">
         <div className="mb-4 flex flex-col gap-1">
           <h1 className="font-serif text-2xl text-[var(--color-purple)]">Yazar Davetleri</h1>

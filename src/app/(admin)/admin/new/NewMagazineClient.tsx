@@ -112,7 +112,7 @@ export default function NewMagazineClient({ docId }: { docId: string | null }) {
   }
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireAdmin>
       <div className="mx-auto max-w-5xl px-4 py-6">
         <h1 className="mb-3 font-serif text-3xl text-[var(--color-purple)]">Yeni Dergi Yazısı</h1>
         <div className="mb-5 space-y-2">

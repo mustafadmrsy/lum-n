@@ -9,15 +9,11 @@ import {
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import {
-  collection,
   doc,
-  getDocs,
-  limit,
-  query,
+  getDoc,
   serverTimestamp,
   setDoc,
-  updateDoc,
-  where,
+  writeBatch,
 } from "firebase/firestore";
 
 export default function LoginClient({
@@ -45,17 +41,14 @@ export default function LoginClient({
         return;
       }
 
-      const invitesRef = collection(db, "invites");
-      const q = query(invitesRef, where("token", "==", inviteToken), limit(1));
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
+      const inviteRef = doc(db, "invites", inviteToken);
+      const inviteSnap = await getDoc(inviteRef);
+      if (!inviteSnap.exists()) {
         setError("Bu davetiye bulunamadı veya süresi dolmuş olabilir.");
         return;
       }
 
-      const inviteDoc = snap.docs[0];
-      const inviteData = inviteDoc.data() as any;
+      const inviteData = inviteSnap.data() as any;
 
       if (inviteData.used) {
         setError("Bu davetiye zaten kullanılmış.");
@@ -112,22 +105,24 @@ export default function LoginClient({
       }
 
       const userRef = doc(db, "users", user.uid);
-      await setDoc(
+      const batch = writeBatch(db);
+      batch.set(
         userRef,
         {
           email: user.email || null,
           displayName: trimmedName || user.displayName || null,
           role,
+          inviteToken,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
-
-      await updateDoc(inviteDoc.ref, {
+      batch.update(inviteRef, {
         used: true,
         usedByUserId: user.uid,
         usedAt: serverTimestamp(),
       });
+      await batch.commit();
 
       router.replace(redirect || "/admin");
     } catch (err: any) {

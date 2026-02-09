@@ -3,8 +3,15 @@ import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
+import { isAdminEmail } from "@/lib/adminAllowlist";
 
-export default function ProtectedRoute({ children }: { children: ReactNode }) {
+export default function ProtectedRoute({
+  children,
+  requireAdmin,
+}: {
+  children: ReactNode;
+  requireAdmin?: boolean;
+}) {
   const router = useRouter();
   const [user, loading] = useAuthState(auth);
   const [mounted, setMounted] = useState(false);
@@ -18,8 +25,12 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
     if (loading) return;
     if (!user) {
       router.replace("/login");
+      return;
     }
-  }, [mounted, loading, user, router]);
+    if (requireAdmin && !isAdminEmail(user.email)) {
+      router.replace("/");
+    }
+  }, [mounted, loading, user, router, requireAdmin]);
 
   if (!mounted || loading) {
     return (
@@ -30,5 +41,6 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!user) return null;
+  if (requireAdmin && !isAdminEmail(user.email)) return null;
   return <>{children}</>;
 }
