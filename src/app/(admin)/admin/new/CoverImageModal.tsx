@@ -74,15 +74,13 @@ export default function CoverImageModal({
 
               setUploading(true);
               try {
-                const res = await fetch("/api/uploads/presign", {
+                const form = new FormData();
+                form.append("file", f);
+                form.append("userEmail", userEmail);
+
+                const res = await fetch("/api/uploads/direct", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    fileName: f.name,
-                    contentType: f.type,
-                    size: f.size,
-                    userEmail,
-                  }),
+                  body: form,
                 });
 
                 if (!res.ok) {
@@ -90,18 +88,8 @@ export default function CoverImageModal({
                   throw new Error(data?.error || "Presign alınamadı");
                 }
 
-                const data = (await res.json()) as { uploadUrl: string; publicUrl: string };
-                if (!data?.uploadUrl || !data?.publicUrl) throw new Error("Presign yanıtı eksik");
-
-                const put = await fetch(data.uploadUrl, {
-                  method: "PUT",
-                  headers: { "Content-Type": f.type },
-                  body: f,
-                });
-
-                if (!put.ok) {
-                  throw new Error("Yükleme başarısız");
-                }
+                const data = (await res.json()) as { publicUrl: string };
+                if (!data?.publicUrl) throw new Error("Upload yanıtı eksik");
 
                 setDraftUrl(data.publicUrl);
               } catch (err: any) {
