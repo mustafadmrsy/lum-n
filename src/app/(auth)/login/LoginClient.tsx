@@ -13,8 +13,9 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
-  writeBatch,
+  updateDoc,
 } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 
 export default function LoginClient({
   inviteToken,
@@ -52,28 +53,32 @@ export default function LoginClient({
 
       let userCredential;
       try {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-      } catch (err: any) {
-        if (err?.code === "auth/user-not-found" || err?.code === "auth/invalid-credential") {
-          try {
-            userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          } catch (createErr: any) {
-            if (createErr?.code === "auth/email-already-in-use") {
-              throw new Error(
-                "Bu e-posta adresiyle daha önce bir hesap açılmış. Lütfen mevcut şifrenle giriş yap veya farklı bir e-posta dene."
-              );
-            }
-            throw createErr;
-          }
+        // Invite akışında öncelik: yeni hesap oluştur (çoğu davetli kullanıcı yeni olacak)
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      } catch (createErr: any) {
+        // Hesap zaten varsa, bu defa giriş yapmayı dene
+        if (createErr?.code === "auth/email-already-in-use") {
+          userCredential = await signInWithEmailAndPassword(auth, email, password);
         } else {
-          throw err;
+          throw createErr;
         }
       }
 
       const user = userCredential.user;
 
       const inviteRef = doc(db, "invites", effectiveInviteToken);
-      const inviteSnap = await getDoc(inviteRef);
+      let inviteSnap;
+      try {
+        inviteSnap = await getDoc(inviteRef);
+      } catch (e: any) {
+        if (e instanceof FirebaseError && e.code === "permission-denied") {
+          setError(
+            "İzin hatası: Davet dokümanı okunamıyor. Invite token geçersiz olabilir, invite.used=true olabilir veya Firestore Rules farklı bir versiyon publish edilmiş olabilir. Firebase Console'da invites/{token} dokümanını kontrol et."
+          );
+          return;
+        }
+        throw e;
+      }
       if (!inviteSnap.exists()) {
         setError("Bu davetiye bulunamadı veya süresi dolmuş olabilir.");
         return;
@@ -114,27 +119,83 @@ export default function LoginClient({
       }
 
       const userRef = doc(db, "users", user.uid);
-      const batch = writeBatch(db);
-      batch.set(
-        userRef,
-        {
-          email: user.email || null,
-          displayName: trimmedName || user.displayName || null,
-          role,
-          inviteToken: effectiveInviteToken,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      batch.update(inviteRef, {
-        used: true,
-        usedByUserId: user.uid,
-        usedAt: serverTimestamp(),
-      });
-      await batch.commit();
+
+      // 1) Önce kullanıcı dokümanını yaz (admin sisteme düşsün)
+      try {
+        await setDoc(
+          userRef,
+          {
+            email: user.email || null,
+            displayName: trimmedName || user.displayName || null,
+            role,
+            inviteToken: effectiveInviteToken,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (e: any) {
+        if (e instanceof FirebaseError && e.code === "permission-denied") {
+          setError(
+            "İzin hatası: users koleksiyonuna rol yazılamadı. Firestore Rules publish edildi mi ve invite token gerçekten geçerli mi? (invites/{token} used=false olmalı)."
+          );
+          return;
+        }
+        throw e;
+      }
+
+      // 2) Invite used işaretlemesi best-effort (başarısız olsa da kullanıcı admin olarak kalmalı)
+      try {
+        await updateDoc(inviteRef, {
+          used: true,
+          usedByUserId: user.uid,
+          usedAt: serverTimestamp(),
+        });
+      } catch (e: any) {
+        console.warn("Invite used update failed", e);
+      }
 
       router.replace(effectiveRedirect || "/admin");
     } catch (err: any) {
+      if (err instanceof FirebaseError) {
+        const code = err.code || "";
+        if (code === "permission-denied") {
+          setError(
+            "İzin hatası: Firestore kuralları bu işlemi engelliyor. Firebase Console'da Firestore Rules'u publish ettiğinden ve davetin doğru olduğundan emin ol."
+          );
+          return;
+        }
+
+        if (code.startsWith("auth/")) {
+          if (code === "auth/invalid-credential" || code === "auth/wrong-password") {
+            setError("Şifre hatalı veya bu e-postayla kayıt yok. Davetliysen yeni bir şifre belirleyip tekrar dene.");
+            return;
+          }
+          if (code === "auth/email-already-in-use") {
+            setError(
+              "Bu e-posta adresiyle zaten hesap var. Daveti kullanmak için mevcut şifrenle giriş yapmalısın."
+            );
+            return;
+          }
+          if (code === "auth/operation-not-allowed") {
+            setError(
+              "Email/Password giriş açık değil. Firebase Console > Authentication > Sign-in method bölümünden Email/Password'u enable et."
+            );
+            return;
+          }
+          if (code === "auth/too-many-requests") {
+            setError("Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.");
+            return;
+          }
+          if (code === "auth/weak-password") {
+            setError("Parola çok zayıf. En az 6 karakter bir parola gir.");
+            return;
+          }
+        }
+
+        setError(err.message || "Giriş başarısız");
+        return;
+      }
+
       setError(err?.message ?? "Giriş başarısız");
     } finally {
       setLoading(false);

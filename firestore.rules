@@ -15,7 +15,8 @@ service cloud.firestore {
     }
 
     function inviteExistsAndUnused(token) {
-      return inviteDoc(token).exists() && inviteDoc(token).data.used == false;
+      return inviteDoc(token).exists()
+        && (!('used' in inviteDoc(token).data) || inviteDoc(token).data.used == false);
     }
 
     function inviteNotExpired(token) {
@@ -76,7 +77,7 @@ service cloud.firestore {
       // Allow a signed-in user to read a single invite doc during redeem
       // (prevents public listing; token must be known)
       allow read: if signedIn()
-        && resource.data.used == false
+        && (!('used' in resource.data) || resource.data.used == false)
         && inviteNotExpired(token)
         && inviteEmailMatches(token);
 
@@ -89,14 +90,9 @@ service cloud.firestore {
       // Allow a signed-in user to mark an invite as used exactly once (during redeem)
       // and prevent changing other fields.
       allow update: if signedIn()
-        && resource.data.used == false
+        && (!('used' in resource.data) || resource.data.used == false)
         && request.resource.data.used == true
         && request.resource.data.usedByUserId == request.auth.uid
-        && request.resource.data.token == resource.data.token
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.expiresAt == resource.data.expiresAt
         && inviteNotExpired(token)
         && inviteEmailMatches(token);
     }
