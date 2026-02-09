@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -24,6 +24,15 @@ export default function LoginClient({
   redirect: string | null;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const effectiveInviteToken = useMemo(() => {
+    return inviteToken ?? searchParams.get("inviteToken");
+  }, [inviteToken, searchParams]);
+
+  const effectiveRedirect = useMemo(() => {
+    return redirect ?? searchParams.get("redirect");
+  }, [redirect, searchParams]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -35,9 +44,9 @@ export default function LoginClient({
     setError(null);
     setLoading(true);
     try {
-      if (!inviteToken) {
+      if (!effectiveInviteToken) {
         await signInWithEmailAndPassword(auth, email, password);
-        router.replace(redirect || "/admin");
+        router.replace(effectiveRedirect || "/admin");
         return;
       }
 
@@ -63,7 +72,7 @@ export default function LoginClient({
 
       const user = userCredential.user;
 
-      const inviteRef = doc(db, "invites", inviteToken);
+      const inviteRef = doc(db, "invites", effectiveInviteToken);
       const inviteSnap = await getDoc(inviteRef);
       if (!inviteSnap.exists()) {
         setError("Bu davetiye bulunamadı veya süresi dolmuş olabilir.");
@@ -112,7 +121,7 @@ export default function LoginClient({
           email: user.email || null,
           displayName: trimmedName || user.displayName || null,
           role,
-          inviteToken,
+          inviteToken: effectiveInviteToken,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -124,7 +133,7 @@ export default function LoginClient({
       });
       await batch.commit();
 
-      router.replace(redirect || "/admin");
+      router.replace(effectiveRedirect || "/admin");
     } catch (err: any) {
       setError(err?.message ?? "Giriş başarısız");
     } finally {
@@ -136,7 +145,7 @@ export default function LoginClient({
     <div className="min-h-[70vh] grid place-items-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
         <h1 className="mb-1 text-center font-serif text-3xl text-[var(--color-purple)]">Dergi Lumin</h1>
-        {inviteToken ? (
+        {effectiveInviteToken ? (
           <p className="mb-5 text-center text-xs text-[var(--color-brown)]/70">
             Sana gönderilen <span className="font-semibold">yazar daveti</span> ile ilk kez hesap oluşturuyorsun. Bu hesap
             dergi paneline erişebilen <span className="font-semibold">yazar/admin</span> hesabı olacak.
@@ -147,7 +156,7 @@ export default function LoginClient({
           </p>
         )}
         <form onSubmit={onSubmit} className="space-y-4">
-          {inviteToken && (
+          {effectiveInviteToken && (
             <div className="space-y-2">
               <label className="block text-sm text-[var(--color-brown)]">Kullanıcı adı</label>
               <input
@@ -187,10 +196,10 @@ export default function LoginClient({
             className="w-full rounded-full py-2 font-medium btn-primary disabled:opacity-60"
           >
             {loading
-              ? inviteToken
+              ? effectiveInviteToken
                 ? "Hesap oluşturuluyor..."
                 : "Giriş yapılıyor..."
-              : inviteToken
+              : effectiveInviteToken
                 ? "Daveti Kullan ve Hesap Oluştur"
                 : "Giriş Yap"}
           </button>
