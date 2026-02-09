@@ -26,7 +26,7 @@ export default function Footer() {
 
           <div className="flex items-center justify-center gap-2 sm:justify-end">
             <a
-              href="https://instagram.com/"
+              href="https://www.instagram.com/lumindergi/"
               target="_blank"
               rel="noreferrer"
               aria-label="Instagram"
@@ -37,7 +37,7 @@ export default function Footer() {
             </a>
 
             <a
-              href="https://tiktok.com/@"
+              href="https://www.tiktok.com/@dergi.lumin"
               target="_blank"
               rel="noreferrer"
               aria-label="TikTok"
@@ -48,23 +48,12 @@ export default function Footer() {
             </a>
 
             <a
-              href="mailto:info@dergilumin.com"
+              href="mailto:lumindergi@gmail.com"
               aria-label="Mail"
               title="Mail"
               className="group inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 transition hover:bg-white/10 hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/30"
             >
               <Image src="/icon/gmail.svg" alt="" width={18} height={18} className="h-[18px] w-[18px]" />
-            </a>
-
-            <a
-              href="https://open.spotify.com/"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Spotify"
-              title="Spotify"
-              className="group inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 transition hover:bg-white/10 hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/30"
-            >
-              <Image src="/icon/spotify.svg" alt="" width={18} height={18} className="h-[18px] w-[18px]" />
             </a>
           </div>
         </div>
