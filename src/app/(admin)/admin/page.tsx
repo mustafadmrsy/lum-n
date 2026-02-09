@@ -143,12 +143,21 @@ export default function AdminHome() {
                           <div className="text-[10px] text-[var(--color-brown)]/60">Yazar: {author}</div>
                           <div className="text-[10px] text-[var(--color-brown)]/60">Son düzenleyen: {lastEditor}</div>
                         </div>
-                        <Link
-                          href={`/magazine/${docu.id}`}
-                          className="ml-3 text-xs text-[var(--color-purple)] hover:underline whitespace-nowrap"
-                        >
-                          Görüntüle
-                        </Link>
+                        <div className="ml-3 flex items-center gap-2">
+                          <Link
+                            href={`/magazine/${docu.id}`}
+                            className="text-xs text-[var(--color-purple)] hover:underline whitespace-nowrap"
+                          >
+                            Görüntüle
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => onDelete(docu.id, d.coverPath)}
+                            className="text-xs text-red-600 hover:underline whitespace-nowrap"
+                          >
+                            Sil
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
