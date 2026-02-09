@@ -41,6 +41,28 @@ export default function LoginClient({
         return;
       }
 
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      } catch (err: any) {
+        if (err?.code === "auth/user-not-found" || err?.code === "auth/invalid-credential") {
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          } catch (createErr: any) {
+            if (createErr?.code === "auth/email-already-in-use") {
+              throw new Error(
+                "Bu e-posta adresiyle daha önce bir hesap açılmış. Lütfen mevcut şifrenle giriş yap veya farklı bir e-posta dene."
+              );
+            }
+            throw createErr;
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      const user = userCredential.user;
+
       const inviteRef = doc(db, "invites", inviteToken);
       const inviteSnap = await getDoc(inviteRef);
       if (!inviteSnap.exists()) {
@@ -64,7 +86,7 @@ export default function LoginClient({
         return;
       }
 
-      if (inviteData.email && inviteData.email !== email) {
+      if (inviteData.email && inviteData.email !== (user.email || email)) {
         setError(
           "Bu davetiye farklı bir e-posta için oluşturulmuş. Lütfen davetteki adresi kullan."
         );
@@ -72,28 +94,6 @@ export default function LoginClient({
       }
 
       const role = inviteData.role || "admin";
-
-      let userCredential;
-      try {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-      } catch (err: any) {
-        if (err?.code === "auth/user-not-found" || err?.code === "auth/invalid-credential") {
-          try {
-            userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          } catch (createErr: any) {
-            if (createErr?.code === "auth/email-already-in-use") {
-              throw new Error(
-                "Bu e-posta adresiyle daha önce bir hesap açılmış. Lütfen mevcut şifrenle giriş yap veya farklı bir e-posta dene."
-              );
-            }
-            throw createErr;
-          }
-        } else {
-          throw err;
-        }
-      }
-
-      const user = userCredential.user;
 
       const trimmedName = displayName.trim();
       if (trimmedName) {

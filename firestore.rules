@@ -55,8 +55,8 @@ service cloud.firestore {
     // Users
     match /users/{userId} {
       allow read: if adminEmail() || (signedIn() && request.auth.uid == userId);
-      // User can create their own doc (no role assignment unless redeeming a valid invite)
-      allow create: if isCreatingSelfUserDoc(userId);
+      // User can create their own doc, but cannot set role unless redeeming a valid invite
+      allow create: if isCreatingSelfUserDoc(userId) && !("role" in request.resource.data);
       allow create: if isRedeemingInviteForSelf(userId);
 
       // Normal profile update: user can update their own doc as long as they don't change role
@@ -70,7 +70,15 @@ service cloud.firestore {
 
     // Invites
     match /invites/{token} {
+      // Admin can read all invites
       allow read: if adminEmail();
+
+      // Allow a signed-in user to read a single invite doc during redeem
+      // (prevents public listing; token must be known)
+      allow read: if signedIn()
+        && resource.data.used == false
+        && inviteNotExpired(token)
+        && inviteEmailMatches(token);
 
       // Only admin can create invites
       allow create: if adminEmail();
